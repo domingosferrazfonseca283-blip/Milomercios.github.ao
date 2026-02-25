@@ -1,0 +1,107 @@
+/* --- CONFIGURAÇÕES DE CORES E FONTES --- */
+:root {
+    --primaria: #2c3e50;    /* Azul escuro profissional */
+    --detalhe: #ff9900;     /* Laranja Milomércios */
+    --fundo: #f8f9fa;       /* Cinza clarinho para o fundo */
+    --texto: #333333;
+}
+
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+}
+
+body { 
+    background-color: var(--fundo); 
+    color: var(--texto);
+}
+
+/* --- TOPO DO SITE (HEADER) --- */
+header {
+    background-color: var(--primaria);
+    color: white;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.logo { 
+    font-size: 1.5rem; 
+    font-weight: bold; 
+    color: var(--detalhe); 
+}
+
+/* --- LISTA DE PRODUTOS --- */
+#app {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 produtos por linha no tlm */
+    gap: 15px;
+    padding: 15px;
+}
+
+/* --- O CARD DO PRODUTO --- */
+.product-card {
+    background: white;
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.product-card img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover; /* Faz a foto caber direitinho */
+    border-radius: 8px;
+}
+
+.product-card h3 {
+    font-size: 0.9rem;
+    margin: 10px 0;
+}
+
+.product-card p {
+    color: var(--primaria);
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+}
+
+/* --- BOTÕES --- */
+.btn-buy {
+    background-color: var(--primaria);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-buy:active {
+    background-color: var(--detalhe);
+    transform: scale(0.95);
+}
+
+/* --- CARRINHO NO TOPO --- */
+#cart-count {
+    background: var(--detalhe);
+    color: var(--primaria);
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    margin-left: 5px;
+}
+

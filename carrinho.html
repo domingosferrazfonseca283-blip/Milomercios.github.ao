@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Carrinho | Milomércios</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .cart-item { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px; margin: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .total-container { padding: 20px; text-align: right; font-size: 1.2rem; font-weight: bold; }
+        .btn-checkout { background: #27ae60; color: white; border: none; padding: 15px; width: 90%; margin: 5%; border-radius: 8px; font-size: 1.1rem; }
+        .btn-clear { background: #e74c3c; color: white; border: none; padding: 10px; border-radius: 4px; margin: 10px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">Milomércios</div>
+        <a href="index.html" style="color:white; text-decoration:none;">Continuar Comprando</a>
+    </header>
+
+    <main id="cart-list">
+        </main>
+
+    <div class="total-container">
+        Total: <span id="cart-total">0.00</span> MT
+    </div>
+
+    <button class="btn-checkout" onclick="finalizarCompra()">Finalizar Pedidoo via whatsApps</button>
+    <button class="btn-clear" onclick="limparCarrinho()">Esvaziar Carrinho</button>
+
+    <script src="cart.js"></script>
+</body>
+</html>
