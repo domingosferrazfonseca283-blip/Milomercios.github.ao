@@ -14,10 +14,11 @@ document.getElementById('btn-registar').addEventListener('click', async () => {
       email,
       tipo: 'vendedor',
       planoSubscricao: 'mensal',
-      subscricaoAtiva: true,
+      subscricaoAtiva: false,
+      estadoConta: 'pendente',
       criadoEm: serverTimestamp()
     });
-    alert('Conta de vendedor criada com sucesso!');
+    alert('Conta criada! A sua loja ficará disponível após a ativação pelo administrador e da subscrição.');
     window.location.href = 'vendedor.html';
   } catch (error) {
     console.error(error);
