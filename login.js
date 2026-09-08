@@ -1,35 +1,20 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-
-// COLOQUE AS SUAS CHAVES DO FIREBASE AQUI
-const firebaseConfig = {
-    apiKey: "SUA_API_KEY",
-    authDomain: "seu-projeto.firebaseapp.com",
-    projectId: "seu-projeto",
-    storageBucket: "seu-projeto.appspot.com",
-    messagingSenderId: "seu-id",
-    appId: "seu-app-id"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+import { auth, db } from "./firebase-config.js";
+import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 document.getElementById('btn-login').addEventListener('click', async () => {
-    const email = document.getElementById('log-email').value;
-    const senha = document.getElementById('log-senha').value;
-
-    if (!email || !senha) return alert("Por favor, preencha todos os campos.");
-
-    try {
-        await signInWithEmailAndPassword(auth, email, senha);
-        alert("Login realizado com sucesso!");
-        window.location.href = "admin.html"; // Redireciona para o painel de postagem
-    } catch (error) {
-        console.error(error);
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-            alert("E-mail ou senha incorretos.");
-        } else {
-            alert("Erro ao entrar: " + error.message);
-        }
-    }
+  const email = document.getElementById('log-email').value.trim();
+  const senha = document.getElementById('log-senha').value;
+  if (!email || !senha) return alert('Por favor, preencha todos os campos.');
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, senha);
+    const perfilSnap = await getDoc(doc(db, 'usuarios', cred.user.uid));
+    const perfil = perfilSnap.exists() ? perfilSnap.data() : {};
+    if (perfil.tipo === 'admin') window.location.href = 'admin.html';
+    else if (perfil.tipo === 'vendedor') window.location.href = 'vendedor.html';
+    else window.location.href = 'index.html';
+  } catch (error) {
+    console.error(error);
+    alert(error.code === 'auth/invalid-credential' ? 'E-mail ou senha incorretos.' : 'Erro ao entrar: ' + error.message);
+  }
 });
