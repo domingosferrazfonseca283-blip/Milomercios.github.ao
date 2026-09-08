@@ -1,30 +1,23 @@
-let produtos = [
-  { id: 101, nome: "Smartphone Pro", preco: 25000, categoria: "eletronicos", img: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300" },
-  { id: 102, nome: "Tênis Runner", preco: 4500, categoria: "moda", img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300" }
-];
+import { db } from './firebase-config.js';
+import { collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+
+let produtos = [];
 const app = document.getElementById('app');
 const cartCount = document.getElementById('cart-count');
 let categoriaAtual = 'todos';
 
+function normalizarProduto(id, data) {
+  return { id, nome:data.nome||'Produto sem nome', preco:Number(data.preco||0), categoria:String(data.categoria||'outros').toLowerCase(), descricao:data.descricao||'', img:data.img||data.imagemUrl||'', vendedorId:data.vendedorId||'' };
+}
 function renderizarLoja() {
-  const lista = categoriaAtual === 'todos' ? produtos : produtos.filter(p => p.categoria === categoriaAtual);
-  app.innerHTML = lista.length ? lista.map(prod => `
-    <div class="product-card"><img src="${escapeHtml(prod.img || '')}" alt="${escapeHtml(prod.nome)}"><h3>${escapeHtml(prod.nome)}</h3><p>${Number(prod.preco || 0).toLocaleString('pt-AO')} Kz</p><button class="btn-buy" onclick="adicionarAoCarrinho(${Number(prod.id)})"><i class="fas fa-cart-plus"></i> Comprar</button></div>`).join('') : '<p style="padding:20px">Nenhum produto nesta categoria.</p>';
+  const lista=categoriaAtual==='todos'?produtos:produtos.filter(p=>p.categoria===categoriaAtual);
+  app.innerHTML=lista.length?lista.map(prod=>`<div class="product-card">${prod.img?`<img src="${escapeHtml(prod.img)}" alt="${escapeHtml(prod.nome)}">`:'<div style="height:180px;display:flex;align-items:center;justify-content:center;background:#f1f3f5">Sem imagem</div>'}<h3>${escapeHtml(prod.nome)}</h3><p>${Number(prod.preco||0).toLocaleString('pt-AO')} Kz</p>${prod.descricao?`<p>${escapeHtml(prod.descricao)}</p>`:''}<button class="btn-buy" onclick="adicionarAoCarrinho('${escapeHtml(prod.id)}')"><i class="fas fa-cart-plus"></i> Comprar</button></div>`).join(''):'<p style="padding:20px">Nenhum produto aprovado nesta categoria.</p>';
 }
-
-function filter(categoria) { categoriaAtual = categoria; renderizarLoja(); }
-window.filter = filter;
-
-function adicionarAoCarrinho(id) {
-  const produto = produtos.find(p => p.id === id);
-  if (!produto) return;
-  const carrinho = JSON.parse(localStorage.getItem('milomercios_cart')) || [];
-  carrinho.push(produto);
-  localStorage.setItem('milomercios_cart', JSON.stringify(carrinho));
-  cartCount.innerText = carrinho.length;
-  alert(`Sucesso! ${produto.nome} adicionado ao carrinho.`);
-}
-window.adicionarAoCarrinho = adicionarAoCarrinho;
-
-function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-window.onload = () => { renderizarLoja(); cartCount.innerText = (JSON.parse(localStorage.getItem('milomercios_cart')) || []).length; };
+function filter(categoria){categoriaAtual=categoria;renderizarLoja()}
+window.filter=filter;
+function adicionarAoCarrinho(id){const produto=produtos.find(p=>String(p.id)===String(id));if(!produto)return;const carrinho=JSON.parse(localStorage.getItem('milomercios_cart'))||[];const existente=carrinho.find(item=>String(item.id)===String(produto.id));if(existente)existente.quantidade=(Number(existente.quantidade)||1)+1;else carrinho.push({...produto,quantidade:1});localStorage.setItem('milomercios_cart',JSON.stringify(carrinho));atualizarContador();alert(`Sucesso! ${produto.nome} adicionado ao carrinho.`)}
+window.adicionarAoCarrinho=adicionarAoCarrinho;
+function atualizarContador(){const carrinho=JSON.parse(localStorage.getItem('milomercios_cart'))||[];cartCount.innerText=carrinho.reduce((total,item)=>total+(Number(item.quantidade)||1),0)}
+async function carregarProdutos(){try{const snapshot=await getDocs(query(collection(db,'produtos'),where('ativo','==',true)));produtos=snapshot.docs.map(d=>normalizarProduto(d.id,d.data())).filter(p=>p.preco>0&&p.vendedorId);renderizarLoja()}catch(error){console.error(error);app.innerHTML='<p style="padding:20px">Não foi possível carregar os produtos. Tente novamente.</p>'}}
+function escapeHtml(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+window.addEventListener('load',()=>{atualizarContador();carregarProdutos()});
