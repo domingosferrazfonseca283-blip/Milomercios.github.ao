@@ -26,15 +26,23 @@ async function carregarConfiguracao() {
   if (cfg.exists()) {
     $('sub-plano').value = cfg.data().plano || 'mensal';
     $('sub-valor').value = cfg.data().valor ?? '';
+    $('sub-link').value = cfg.data().linkPagamento || '';
   }
 }
 
 $('btn-logout').addEventListener('click', () => signOut(auth));
 $('btn-sub').addEventListener('click', async () => {
   const valor = Number($('sub-valor').value);
+  const linkPagamento = $('sub-link').value.trim();
   if (!valor || valor <= 0) return alert('Informe um valor maior que zero.');
+  if (linkPagamento && !/^https:\/\//i.test(linkPagamento)) return alert('O link de pagamento deve começar por https://');
   try {
-    await setDoc(doc(db, 'configuracao', 'subscricao'), { plano: $('sub-plano').value, valor, atualizadoEm: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, 'configuracao', 'subscricao'), {
+      plano: $('sub-plano').value,
+      valor,
+      linkPagamento,
+      atualizadoEm: serverTimestamp()
+    }, { merge: true });
     alert('Configuração de subscrição guardada.');
   } catch (e) { console.error(e); alert('Não foi possível guardar a configuração: ' + e.message); }
 });
