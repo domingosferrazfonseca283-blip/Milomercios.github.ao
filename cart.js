@@ -1,32 +1,31 @@
-// 1. Carregar itens do carrinho
-let itensCarrinho = JSON.parse(localStorage.getItem('milomercios_cart')) || [];
+let itensCarrinho = JSON.parse(localStorage.getItem('milomercios_cart') || '[]');
 const listaHtml = document.getElementById('cart-list');
 const totalHtml = document.getElementById('cart-total');
 
+const money = value => `${Number(value || 0).toLocaleString('pt-AO')} Kz`;
+
 function renderizarCarrinho() {
-    listaHtml.innerHTML = "";
+    listaHtml.innerHTML = '';
     let somaTotal = 0;
 
-    if (itensCarrinho.length === 0) {
-        listaHtml.innerHTML = "<p style='text-align:center; padding:20px;'>O seu carrinho está vazio.</p>";
-        totalHtml.innerText = "0,00";
+    if (!itensCarrinho.length) {
+        listaHtml.innerHTML = "<p style='text-align:center;padding:20px;'>O seu carrinho está vazio.</p>";
+        totalHtml.innerText = '0,00';
         return;
     }
 
     itensCarrinho.forEach((item, index) => {
-        somaTotal += parseFloat(item.preco);
+        const quantidade = Number(item.quantidade) || 1;
+        const preco = Number(item.preco) || 0;
+        somaTotal += preco * quantidade;
         listaHtml.innerHTML += `
-            <div class="cart-item" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:15px; margin-bottom:10px; border-radius:8px;">
-                <div>
-                    <strong>${item.nome}</strong><br>
-                    <span>${item.preco.toLocaleString('pt-PT')} MT</span>
-                </div>
-                <button onclick="removerDoCarrinho(${index})" style="color:red; border:none; background:none; font-weight:bold;">Remover</button>
-            </div>
-        `;
+            <div class="cart-item">
+                <div><strong>${item.nome}</strong><br><span>${money(preco)} × ${quantidade}</span></div>
+                <button onclick="removerDoCarrinho(${index})" style="color:red;border:none;background:none;font-weight:bold;cursor:pointer;">Remover</button>
+            </div>`;
     });
 
-    totalHtml.innerText = somaTotal.toLocaleString('pt-PT');
+    totalHtml.innerText = somaTotal.toLocaleString('pt-AO');
 }
 
 function removerDoCarrinho(index) {
@@ -35,27 +34,10 @@ function removerDoCarrinho(index) {
     renderizarCarrinho();
 }
 
-// 2. A MAGIA: Enviar para o WhatsApp
-function finalizarCompra() {
-    if (itensCarrinho.length === 0) {
-        alert("Adicione produtos antes de finalizar!");
-        return;
-    }
-
-    let numeroTelefone = "+244938820401"; // SUBSTITUA PELO SEU NÚMERO (com código do país)
-    let mensagem = `*Novo Pedido - Milomércios*\n\n`;
-    
-    itensCarrinho.forEach(item => {
-        mensagem += `- ${item.nome}: ${item.preco} MT\n`;
-    });
-
-    mensagem += `\n*Total: ${totalHtml.innerText} MT*`;
-
-    // Criar o link do WhatsApp
-    let url = `https://wa.me/${numeroTelefone}?text=${encodeURIComponent(mensagem)}`;
-    
-    // Abrir o WhatsApp
-    window.open(url, '_blank');
+function limparCarrinho() {
+    itensCarrinho = [];
+    localStorage.setItem('milomercios_cart', '[]');
+    renderizarCarrinho();
 }
 
 renderizarCarrinho();
