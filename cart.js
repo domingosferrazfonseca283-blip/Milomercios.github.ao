@@ -1,8 +1,27 @@
-let itensCarrinho = JSON.parse(localStorage.getItem('milomercios_cart') || '[]');
+let itensCarrinho = carregarCarrinho();
 const listaHtml = document.getElementById('cart-list');
 const totalHtml = document.getElementById('cart-total');
 
 const money = value => `${Number(value || 0).toLocaleString('pt-AO')} Kz`;
+
+function carregarCarrinho() {
+    try {
+        const bruto = JSON.parse(localStorage.getItem('milomercios_cart') || '[]');
+        if (!Array.isArray(bruto)) return [];
+        return bruto.map(item => ({
+            ...item,
+            quantidade: Math.max(1, Math.floor(Number(item.quantidade) || 1)),
+            preco: Number(item.preco) || 0,
+            vendedorId: String(item.vendedorId || '').trim()
+        })).filter(item => item.id && item.nome && item.preco > 0);
+    } catch {
+        return [];
+    }
+}
+
+function guardarCarrinho() {
+    localStorage.setItem('milomercios_cart', JSON.stringify(itensCarrinho));
+}
 
 function renderizarCarrinho() {
     listaHtml.innerHTML = '';
@@ -15,29 +34,58 @@ function renderizarCarrinho() {
     }
 
     itensCarrinho.forEach((item, index) => {
-        const quantidade = Number(item.quantidade) || 1;
-        const preco = Number(item.preco) || 0;
-        somaTotal += preco * quantidade;
+        const quantidade = item.quantidade;
+        const preco = item.preco;
+        const subtotal = preco * quantidade;
+        somaTotal += subtotal;
+        const vendedor = item.vendedorId ? 'Vendedor associado' : 'Vendedor não identificado';
+
         listaHtml.innerHTML += `
             <div class="cart-item">
-                <div><strong>${item.nome}</strong><br><span>${money(preco)} × ${quantidade}</span></div>
-                <button onclick="removerDoCarrinho(${index})" style="color:red;border:none;background:none;font-weight:bold;cursor:pointer;">Remover</button>
+                <div>
+                    <strong>${escapeHtml(item.nome)}</strong><br>
+                    <span>${money(preco)} × ${quantidade} = ${money(subtotal)}</span><br>
+                    <small>${vendedor}</small>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button onclick="alterarQuantidade(${index}, -1)" aria-label="Diminuir quantidade">−</button>
+                    <strong>${quantidade}</strong>
+                    <button onclick="alterarQuantidade(${index}, 1)" aria-label="Aumentar quantidade">+</button>
+                    <button onclick="removerDoCarrinho(${index})" style="color:red;border:none;background:none;font-weight:bold;cursor:pointer;">Remover</button>
+                </div>
             </div>`;
     });
 
     totalHtml.innerText = somaTotal.toLocaleString('pt-AO');
 }
 
-function removerDoCarrinho(index) {
-    itensCarrinho.splice(index, 1);
-    localStorage.setItem('milomercios_cart', JSON.stringify(itensCarrinho));
+function alterarQuantidade(index, delta) {
+    const item = itensCarrinho[index];
+    if (!item) return;
+    item.quantidade = Math.max(1, item.quantidade + Number(delta || 0));
+    guardarCarrinho();
     renderizarCarrinho();
 }
+window.alterarQuantidade = alterarQuantidade;
+
+function removerDoCarrinho(index) {
+    itensCarrinho.splice(index, 1);
+    guardarCarrinho();
+    renderizarCarrinho();
+}
+window.removerDoCarrinho = removerDoCarrinho;
 
 function limparCarrinho() {
     itensCarrinho = [];
-    localStorage.setItem('milomercios_cart', '[]');
+    guardarCarrinho();
     renderizarCarrinho();
+}
+window.limparCarrinho = limparCarrinho;
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'\"]/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[char]);
 }
 
 renderizarCarrinho();
