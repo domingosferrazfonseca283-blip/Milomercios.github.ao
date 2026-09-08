@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 const $ = id => document.getElementById(id);
 let uid = null;
@@ -37,7 +37,7 @@ async function carregarConfiguracao() {
   configSub = snap.exists() ? snap.data() : {};
   const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
   const valor = Number(configSub.valor || 0);
-  $("btn-sub").textContent = valor > 0 ? `Solicitar ${plano} — ${valor.toLocaleString("pt-AO")} Kz` : "Solicitar/renovar subscrição";
+  $("btn-sub").textContent = valor > 0 ? `Pagar ${plano} — ${valor.toLocaleString("pt-AO")} Kz` : "Solicitar/renovar subscrição";
 }
 
 async function carregarUltimoPedido() {
@@ -46,7 +46,7 @@ async function carregarUltimoPedido() {
     if (!snap.empty) {
       const pedidos = snap.docs.map(d => d.data()).sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
       const ultimo = pedidos[0];
-      if (ultimo.estado === "aguardando_pagamento") $("aviso-venda").textContent += " Já existe um pedido de subscrição aguardando confirmação do administrador.";
+      if (ultimo.estado === "aguardando_pagamento") $("aviso-venda").textContent += " Já existe um pedido de subscrição aguardando confirmação do pagamento.";
     }
   } catch (e) { console.warn("Não foi possível carregar o último pedido", e); }
 }
@@ -63,24 +63,12 @@ async function carregarProdutos() {
 }
 
 $("btn-produto").addEventListener("click", async () => {
-  if (perfilAtual.estadoConta !== "ativo" || perfilAtual.subscricaoAtiva !== true) {
-    return alert("A sua conta ou subscrição ainda não está ativa.");
-  }
+  if (perfilAtual.estadoConta !== "ativo" || perfilAtual.subscricaoAtiva !== true) return alert("A sua conta ou subscrição ainda não está ativa.");
   const nome = $("p-nome").value.trim();
   const preco = Number($("p-preco").value);
   if (!nome || !Number.isFinite(preco) || preco < 0) return alert("Informe o nome e um preço válido.");
   try {
-    await addDoc(collection(db, "produtos"), {
-      vendedorId: uid,
-      nome,
-      preco,
-      categoria: $("p-cat").value,
-      imagem: $("p-img").value.trim(),
-      descricao: $("p-desc").value.trim(),
-      ativo: false,
-      estadoAprovacao: "pendente",
-      criadoEm: serverTimestamp()
-    });
+    await addDoc(collection(db, "produtos"), { vendedorId: uid, nome, preco, categoria: $("p-cat").value, imagem: $("p-img").value.trim(), descricao: $("p-desc").value.trim(), ativo: false, estadoAprovacao: "pendente", criadoEm: serverTimestamp() });
     ["p-nome","p-preco","p-img","p-desc"].forEach(id => $(id).value = "");
     alert("Produto enviado para aprovação do administrador.");
     carregarProdutos();
@@ -91,18 +79,19 @@ $("btn-sub").addEventListener("click", async () => {
   try {
     const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
     const valor = Number(configSub.valor || 0);
+    if (!valor || valor <= 0) return alert("O administrador ainda não configurou o valor da subscrição.");
     const existente = await getDocs(query(collection(db, "pedidosSubscricao"), where("vendedorId", "==", uid), where("estado", "==", "aguardando_pagamento"), limit(1)));
-    if (!existente.empty) return alert("Já existe um pedido de subscrição aguardando confirmação.");
-    await addDoc(collection(db, "pedidosSubscricao"), {
-      vendedorId: uid,
-      email: perfilAtual.email || auth.currentUser?.email || "",
-      plano,
-      valor,
-      estado: "aguardando_pagamento",
-      criadoEm: serverTimestamp()
-    });
-    alert(valor > 0 ? `Pedido criado: ${plano} — ${valor.toLocaleString("pt-AO")} Kz. O administrador confirmará o pagamento enquanto o gateway não estiver ligado.` : "Pedido criado. O administrador ainda precisa configurar o valor e o pagamento.");
-    carregarUltimoPedido();
+    if (!existente.empty) {
+      if (configSub.linkPagamento) window.open(configSub.linkPagamento, "_blank", "noopener,noreferrer");
+      return alert(configSub.linkPagamento ? "Já existe um pedido. Abrimos o link de pagamento configurado." : "Já existe um pedido de subscrição aguardando confirmação.");
+    }
+    const ref = await addDoc(collection(db, "pedidosSubscricao"), { vendedorId: uid, email: perfilAtual.email || auth.currentUser?.email || "", plano, valor, estado: "aguardando_pagamento", criadoEm: serverTimestamp() });
+    if (configSub.linkPagamento) {
+      window.open(configSub.linkPagamento, "_blank", "noopener,noreferrer");
+      alert("Pedido criado. A janela de pagamento foi aberta. Depois do pagamento, aguarde a confirmação do administrador.");
+    } else {
+      alert(`Pedido criado: ${plano} — ${valor.toLocaleString("pt-AO")} Kz. O administrador ainda precisa configurar o link de pagamento.`);
+    }
   } catch (e) { console.error(e); alert("Não foi possível criar o pedido de subscrição: " + e.message); }
 });
 
