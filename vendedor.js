@@ -1,7 +1,9 @@
-import { auth, db } from "./firebase-config.js";
+import { auth, db, storage } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 
+const ADMIN_EMAIL = "domingosferrazfonseca283@gmail.com";
 const $ = id => document.getElementById(id);
 let uid = null;
 let perfilAtual = {};
@@ -37,7 +39,7 @@ async function carregarConfiguracao() {
   configSub = snap.exists() ? snap.data() : {};
   const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
   const valor = Number(configSub.valor || 0);
-  $("btn-sub").textContent = valor > 0 ? `Pagar ${plano} — ${valor.toLocaleString("pt-AO")} Kz` : "Solicitar/renovar subscrição";
+  $("btn-sub").textContent = valor > 0 ? `Pagar ${plano} — ${valor.toLocaleString("pt-AO")} Kz e enviar comprovativo` : "Solicitar/renovar subscrição";
 }
 
 async function carregarUltimoPedido() {
@@ -46,7 +48,9 @@ async function carregarUltimoPedido() {
     if (!snap.empty) {
       const pedidos = snap.docs.map(d => d.data()).sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
       const ultimo = pedidos[0];
-      if (ultimo.estado === "aguardando_pagamento") $("aviso-venda").textContent += " Já existe um pedido de subscrição aguardando confirmação do pagamento.";
+      if (ultimo.estado === "aguardando_pagamento" || ultimo.estado === "comprovativo_enviado") {
+        $("aviso-venda").textContent += ` Já existe um pedido de subscrição para ${ADMIN_EMAIL}.`;
+      }
     }
   } catch (e) { console.warn("Não foi possível carregar o último pedido", e); }
 }
@@ -80,20 +84,46 @@ $("btn-sub").addEventListener("click", async () => {
     const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
     const valor = Number(configSub.valor || 0);
     if (!valor || valor <= 0) return alert("O administrador ainda não configurou o valor da subscrição.");
-    const existente = await getDocs(query(collection(db, "pedidosSubscricao"), where("vendedorId", "==", uid), where("estado", "==", "aguardando_pagamento"), limit(1)));
+    const existente = await getDocs(query(collection(db, "pedidosSubscricao"), where("vendedorId", "==", uid), where("estado", "in", ["aguardando_pagamento", "comprovativo_enviado"]), limit(1)));
     if (!existente.empty) {
       if (configSub.linkPagamento) window.open(configSub.linkPagamento, "_blank", "noopener,noreferrer");
-      return alert(configSub.linkPagamento ? "Já existe um pedido. Abrimos o link de pagamento configurado." : "Já existe um pedido de subscrição aguardando confirmação.");
+      return alert(`Já existe um pedido. Se já pagou, confirme que enviou o comprovativo para ${ADMIN_EMAIL}.`);
     }
-    const ref = await addDoc(collection(db, "pedidosSubscricao"), { vendedorId: uid, email: perfilAtual.email || auth.currentUser?.email || "", plano, valor, estado: "aguardando_pagamento", criadoEm: serverTimestamp() });
-    if (configSub.linkPagamento) {
-      window.open(configSub.linkPagamento, "_blank", "noopener,noreferrer");
-      alert("Pedido criado. A janela de pagamento foi aberta. Depois do pagamento, aguarde a confirmação do administrador.");
-    } else {
-      alert(`Pedido criado: ${plano} — ${valor.toLocaleString("pt-AO")} Kz. O administrador ainda precisa configurar o link de pagamento.`);
-    }
-  } catch (e) { console.error(e); alert("Não foi possível criar o pedido de subscrição: " + e.message); }
+
+    const file = $("comprovativo").files[0];
+    if (!file) return alert(`Depois de pagar, selecione o comprovativo. Ele será associado ao pedido e ficará visível apenas para si e para ${ADMIN_EMAIL}.`);
+    if (file.size > 10 * 1024 * 1024) return alert("O comprovativo deve ter no máximo 10 MB.");
+    if (!(file.type === "application/pdf" || file.type.startsWith("image/"))) return alert("Envie apenas PDF ou imagem.");
+
+    const pedidoRef = doc(collection(db, "pedidosSubscricao"));
+    const fileRef = ref(storage, `comprovativos/${uid}/${pedidoRef.id}-${sanitizeFileName(file.name)}`);
+    await uploadBytes(fileRef, file, { contentType: file.type });
+    const comprovativoUrl = await getDownloadURL(fileRef);
+
+    await addDoc(collection(db, "pedidosSubscricao"), {
+      vendedorId: uid,
+      email: perfilAtual.email || auth.currentUser?.email || "",
+      adminEmail: ADMIN_EMAIL,
+      plano,
+      valor,
+      estado: "comprovativo_enviado",
+      comprovativoUrl,
+      comprovativoNome: file.name,
+      comprovativoTipo: file.type,
+      comprovativoEnviadoEm: serverTimestamp(),
+      criadoEm: serverTimestamp()
+    });
+
+    if (configSub.linkPagamento) window.open(configSub.linkPagamento, "_blank", "noopener,noreferrer");
+    $("comprovativo").value = "";
+    alert(`Pedido enviado com comprovativo. O administrador ${ADMIN_EMAIL} irá verificar o pagamento e ativar a subscrição.`);
+    $("aviso-venda").textContent += ` Comprovativo enviado para ${ADMIN_EMAIL}.`;
+  } catch (e) {
+    console.error(e);
+    alert("Não foi possível enviar o pedido/comprovativo: " + e.message);
+  }
 });
 
 $("btn-sair").addEventListener("click", () => signOut(auth));
+function sanitizeFileName(v){ return String(v).replace(/[^a-zA-Z0-9._-]/g, "_"); }
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));}
