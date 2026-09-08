@@ -1,10 +1,11 @@
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 const $ = id => document.getElementById(id);
 let uid = null;
 let perfilAtual = {};
+let configSub = {};
 
 onAuthStateChanged(auth, async user => {
   if (!user) { window.location.href = "login.html"; return; }
@@ -26,8 +27,29 @@ onAuthStateChanged(auth, async user => {
   $("plano").textContent = perfilAtual.planoSubscricao || "Mensal";
   $("btn-produto").disabled = !podeVender;
   $("aviso-venda").textContent = podeVender ? "A sua conta pode publicar produtos." : "A publicação de produtos só fica disponível depois da aprovação da conta e ativação da subscrição pelo administrador.";
+  await carregarConfiguracao();
   await carregarProdutos();
+  await carregarUltimoPedido();
 });
+
+async function carregarConfiguracao() {
+  const snap = await getDoc(doc(db, "configuracao", "subscricao"));
+  configSub = snap.exists() ? snap.data() : {};
+  const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
+  const valor = Number(configSub.valor || 0);
+  $("btn-sub").textContent = valor > 0 ? `Solicitar ${plano} — ${valor.toLocaleString("pt-AO")} Kz` : "Solicitar/renovar subscrição";
+}
+
+async function carregarUltimoPedido() {
+  try {
+    const snap = await getDocs(query(collection(db, "pedidosSubscricao"), where("vendedorId", "==", uid), limit(20)));
+    if (!snap.empty) {
+      const pedidos = snap.docs.map(d => d.data()).sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+      const ultimo = pedidos[0];
+      if (ultimo.estado === "aguardando_pagamento") $("aviso-venda").textContent += " Já existe um pedido de subscrição aguardando confirmação do administrador.";
+    }
+  } catch (e) { console.warn("Não foi possível carregar o último pedido", e); }
+}
 
 async function carregarProdutos() {
   const snap = await getDocs(query(collection(db, "produtos"), where("vendedorId", "==", uid)));
@@ -46,7 +68,7 @@ $("btn-produto").addEventListener("click", async () => {
   }
   const nome = $("p-nome").value.trim();
   const preco = Number($("p-preco").value);
-  if (!nome || !preco || preco < 0) return alert("Informe o nome e um preço válido.");
+  if (!nome || !Number.isFinite(preco) || preco < 0) return alert("Informe o nome e um preço válido.");
   try {
     await addDoc(collection(db, "produtos"), {
       vendedorId: uid,
@@ -67,19 +89,20 @@ $("btn-produto").addEventListener("click", async () => {
 
 $("btn-sub").addEventListener("click", async () => {
   try {
-    const cfgSnap = await getDoc(doc(db, "configuracao", "subscricao"));
-    const cfg = cfgSnap.exists() ? cfgSnap.data() : {};
-    const plano = cfg.plano || perfilAtual.planoSubscricao || "mensal";
-    const valor = Number(cfg.valor || 0);
+    const plano = configSub.plano || perfilAtual.planoSubscricao || "mensal";
+    const valor = Number(configSub.valor || 0);
+    const existente = await getDocs(query(collection(db, "pedidosSubscricao"), where("vendedorId", "==", uid), where("estado", "==", "aguardando_pagamento"), limit(1)));
+    if (!existente.empty) return alert("Já existe um pedido de subscrição aguardando confirmação.");
     await addDoc(collection(db, "pedidosSubscricao"), {
       vendedorId: uid,
-      email: perfilAtual.email || "",
+      email: perfilAtual.email || auth.currentUser?.email || "",
       plano,
       valor,
       estado: "aguardando_pagamento",
       criadoEm: serverTimestamp()
     });
-    alert(valor > 0 ? `Pedido de subscrição criado: ${plano} — ${valor.toLocaleString("pt-AO")} Kz. O pagamento será ligado ao gateway escolhido.` : "Pedido de subscrição criado. O administrador ainda precisa configurar o valor e o pagamento.");
+    alert(valor > 0 ? `Pedido criado: ${plano} — ${valor.toLocaleString("pt-AO")} Kz. O administrador confirmará o pagamento enquanto o gateway não estiver ligado.` : "Pedido criado. O administrador ainda precisa configurar o valor e o pagamento.");
+    carregarUltimoPedido();
   } catch (e) { console.error(e); alert("Não foi possível criar o pedido de subscrição: " + e.message); }
 });
 
